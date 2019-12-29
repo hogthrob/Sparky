@@ -26,6 +26,7 @@
 #define VP_PIN 36
 #define VN_PIN 39
 #define POT_CS 26 // if using SPI POT MCP41HV51, not I2C MCP45HV51
+#define SHUTDWON_PIN 15
 // #define DEBUG_PIN 2
 
 // TFT Pin Definitions (Using LoLin D32 Pro defaults)
@@ -209,6 +210,11 @@ int   getFobClick(bool rst);
 void  remoteControl(void);
 float PulseFreqHz(void);
 void  pulseModulation(void);
+
+void controlArc(byte newState, bool verbose);
+void enableArc(bool verbose);
+void disableArc(bool verbose);
+
 
 // SPIFFS Prototypes
 void  spiffsInit(void);

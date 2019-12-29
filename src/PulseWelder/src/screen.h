@@ -82,8 +82,8 @@
 #define FBBOX_H 40
 #define FBBOX_R 3
 
-#define BOBOX_X 20 // Bluetooth On/Off Button Box area X
-#define BOBOX_Y 112
+#define BOBOX_X 250 // Bluetooth On/Off Button Box area X
+#define BOBOX_Y 165
 #define BOBOX_W 50
 #define BOBOX_H 40
 #define BOBOX_R 3
@@ -124,6 +124,14 @@
 #define SNDBOX_H 51
 #define SNDBOX_R 3
 
+
+#define RTNBOX_X 0 // Return Button Box area X
+#define RTNBOX_Y 0
+#define RTNBOX_W SCREEN_W
+#define RTNBOX_H 50
+#define RTNBOX_R 3
+
+
 #define VOLTBOX_X 155 // Volt Box area X
 #define VOLTBOX_Y 125 // Volt Box area Y
 #define VOLTBOX_H 70  // Volt Box Height
@@ -140,6 +148,8 @@
 #define HEART_Y 218   // Heart Icon Y Location
 #define SCREEN_W (tft.width() - 1)
 #define SCREEN_H (tft.height() - 1)
+#define SCREEN_X 0
+#define SCREEN_Y 0
 
 // Touchscreen Definitions
 #define TS_MINX 3800 // Calibration points for touchscreen

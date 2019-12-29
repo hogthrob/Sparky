@@ -71,6 +71,8 @@ void setup()
   pinMode( OC_PIN, INPUT);  // Over Current Input. This pin does not support internal pullups.
   digitalWrite(LED_PIN, LED_ON);
 
+  pinMode(SHUTDWON_PIN, OUTPUT);
+  digitalWrite(SHUTDWON_PIN, HIGH); // disable the inverter PWM
   //  pinMode(DEBUG_PIN, OUTPUT); // Debug Test Output
   //  digitalWrite(DEBUG_PIN, 0);
 
@@ -167,13 +169,8 @@ void setup()
   systemError = ERROR_NONE; // Clear hardware error codes (if any) when in Demo Mode.
 #endif // ifdef DEMO_MODE
 
+  controlArc(arcSwitch, true);
   // Set Welding Current (Digital Pot).
-  if (arcSwitch == ARC_ON) {
-    setPotAmps(setAmps, true);
-  }
-  else {
-    setPotAmps(SET_AMPS_DISABLE, true);
-  }
 
   // Init SPIFFS (SPIFFS is not used in this project).
   // spiffsInit();

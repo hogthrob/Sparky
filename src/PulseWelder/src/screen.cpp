@@ -77,6 +77,14 @@ static long infoAbortMillis     = 0; // Info Page Abort Timer, in mS.
 static long SettingsAbortMillis = 0; // Settings Page abort time.
 static long previousEepMillis   = 0; // Previous Home Page time.
 
+#define COORD(BOXNAME) BOXNAME ## _X , BOXNAME ## _Y , BOXNAME ## _W , BOXNAME ## _H
+
+static bool isInBox(int x, int y, int bx, int by, int bw, int bh)
+{
+  return (((x >= bx) && (x <= bx + bw)) && ((y >= by) && (y <= by + bh)));
+}
+#define IS_IN_BOX(BOXNAME) (isInBox(x, y, COORD(BOXNAME)))
+
 // *********************************************************************************************
 // Change Welder's Pulse amps, Increase or decrement from 10% to 90%.
 // Used by processScreen().
@@ -201,6 +209,17 @@ void fillArc(int x, int y, int start_angle, int seg_count, int rx, int ry, int w
   }
 }
 
+static bool checkAndUpdateEEPROM(int addr, byte value, const char *label, const char *valueString = NULL)
+{
+  bool retval = false;
+  if (EEPROM.read(addr) != value)
+  {                      // Save new Current setting.
+    eepromActive = true; // New Data is available to write.
+    EEPROM.write(addr, value);
+    Serial.println("Write E2Prom Addr: " + String(AMP_SET_ADDR) + ", " + label + ": " + (valueString == NULL?String(value) : valueString));
+  }
+  return retval;
+}
 // *********************************************************************************************
 // Process the TouchScreen actions.
 // Display screen pages, get touch inputs, perform actions.
@@ -224,47 +243,13 @@ void processScreen(void)
     if (millis() - previousEepMillis >= EEP_DELAY_TIME) {
       eepromActive = false;                       // Init for EEProm write checks.
 
-      if (EEPROM.read(AMP_SET_ADDR) != setAmps) { // Save new Current setting.
-        eepromActive = true;                      // New Data is available to write.
-        EEPROM.write(AMP_SET_ADDR, setAmps);
-        Serial.println("Write E2Prom Addr: " + String(AMP_SET_ADDR) + ", Amp Setting: " + String(setAmps));
-      }
-
-      if (EEPROM.read(VOL_SET_ADDR) != spkrVolSwitch) { // Save new Current setting.
-        eepromActive = true;                            // New Data is available to write.
-        EEPROM.write(VOL_SET_ADDR, spkrVolSwitch);
-        Serial.println("Write E2Prom Addr: " + String(VOL_SET_ADDR) + ", Volume: " + String(spkrVolSwitch));
-      }
-
-      if (EEPROM.read(PULSE_SW_ADDR) != pulseSwitch) { // Save new Pulse Switch setting.
-        eepromActive = true;                           // New Data is available to write.
-        EEPROM.write(PULSE_SW_ADDR, pulseSwitch);
-        Serial.println("Write E2Prom Addr: " + String(PULSE_SW_ADDR) + ", Pulse Mode: " + String((pulseSwitch == PULSE_ON ? "On" : "Off")));
-      }
-
-      if (EEPROM.read(ARC_SW_ADDR) != arcSwitch) { // Save new Arc Switch setting.
-        eepromActive = true;                       // New Data is available to write.
-        EEPROM.write(ARC_SW_ADDR, arcSwitch);
-        Serial.println("Write E2Prom Addr: " + String(ARC_SW_ADDR) + ", Arc Power: " + String((arcSwitch == ARC_ON ? "On" : "Off")));
-      }
-
-      if (EEPROM.read(PULSE_FRQ_ADDR) != pulseFreqX10) { // Save new Pulse Frequency setting.
-        eepromActive = true;                             // New Data is available to write.
-        EEPROM.write(PULSE_FRQ_ADDR, pulseFreqX10);
-        Serial.println("Write E2Prom Addr: " + String(PULSE_FRQ_ADDR) + ", Pulse Freq: " + String(PulseFreqHz(), 1) + String(" Hz"));
-      }
-
-      if (EEPROM.read(BLE_SW_ADDR) != bleSwitch) { // Save new Bluetooth Switch setting.
-        eepromActive = true;                       // New Data is available to write.
-        EEPROM.write(BLE_SW_ADDR, bleSwitch);
-        Serial.println("Write E2Prom Addr: " + String(BLE_SW_ADDR) + ", Bluetooth: " + String((bleSwitch == PULSE_ON ? "On" : "Off")));
-      }
-
-      if (EEPROM.read(PULSE_AMPS_ADDR) != pulseAmpsPc) { // Save new Pulse Current (%) setting.
-        eepromActive = true;                             // New Data is available to write.
-        EEPROM.write(PULSE_AMPS_ADDR, pulseAmpsPc);
-        Serial.println("Write E2Prom Addr: " + String(PULSE_AMPS_ADDR) + ", Pulse Modulation Current: " + String(pulseAmpsPc) + "%");
-      }
+      eepromActive |= checkAndUpdateEEPROM(AMP_SET_ADDR, setAmps, "Amp Setting");
+      eepromActive |= checkAndUpdateEEPROM(VOL_SET_ADDR, spkrVolSwitch, "Volume");
+      eepromActive |= checkAndUpdateEEPROM(PULSE_SW_ADDR, pulseSwitch, "Pulse Mode", pulseSwitch == PULSE_ON ? "On": "Off");
+      eepromActive |= checkAndUpdateEEPROM(ARC_SW_ADDR, arcSwitch, "Arc Power", arcSwitch == ARC_ON ? "On": "Off");
+      eepromActive |= checkAndUpdateEEPROM(PULSE_FRQ_ADDR, pulseFreqX10, "Pulse Freq", (String(PulseFreqHz(), 1) + String(" Hz")).c_str());
+      eepromActive |= checkAndUpdateEEPROM(BLE_SW_ADDR, bleSwitch, "Bluetooth", bleSwitch == PULSE_ON ? "On": "Off");
+      eepromActive |= checkAndUpdateEEPROM(PULSE_AMPS_ADDR, pulseAmpsPc, "Pulse Modulation Current", (String(pulseAmpsPc) + "%").c_str());
 
       if (eepromActive) { // New data available to write. Commit it to the flash.
         eepromActive = false;
@@ -304,23 +289,17 @@ void processScreen(void)
       wasTouched = true;
       getTouchPoints();
 
-      if (((x > ARCBOX_X) && (x < ARCBOX_X + ARCBOX_W)) && ((y > ARCBOX_Y) && (y < ARCBOX_Y + ARCBOX_H)))
+      if (IS_IN_BOX(ARCBOX))
       {                                                     // toggle Arc Current
-        arcSwitch = arcSwitch == ARC_ON ? ARC_OFF : ARC_ON; // Pseudo Boolean Toggle.
+        controlArc(arcSwitch == ARC_ON ? ARC_OFF : ARC_ON, true); // Pseudo Boolean Toggle.
         drawHomePage();
 
         if (arcSwitch == ARC_ON) {
-          Serial.println("Arc Current Turned On (" + String(setAmps) + " Amps)");
-          setPotAmps(setAmps, true); // Refresh Digital Pot.
-
           if (spkrVolSwitch != VOL_OFF) {
             DacAudio.Play(&highBeep, true);
           }
         }
         else {
-          Serial.println("Arc Current Turned Off (limited to " + String(SET_AMPS_DISABLE) + " Amps).");
-          setPotAmps(SET_AMPS_DISABLE, true); // Set Digital Pot to lowest welding current.
-
           if (spkrVolSwitch != VOL_OFF) {
             DacAudio.Play(&lowBeep, true);
           }
@@ -328,7 +307,7 @@ void processScreen(void)
         previousEepMillis = millis();
         eepromActive      = true; // Request EEProm Write after timer expiry.
       }
-      else if (((x > SNDBOX_X) && (x < SNDBOX_X + SNDBOX_W)) && ((y > SNDBOX_Y) && (y < SNDBOX_Y + SNDBOX_H)))
+      else if (IS_IN_BOX(SNDBOX))
       {                           // Adjust Audio Volume
         if ((spkrVolSwitch >= VOL_OFF) && (spkrVolSwitch < VOL_LOW)) {
           spkrVolSwitch = VOL_LOW;
@@ -368,7 +347,7 @@ void processScreen(void)
         eepromActive      = true; // Request EEProm Write after timer expiry.
         updateVolumeIcon();
       }
-      else if (((x > INFOBOX_X) && (x < INFOBOX_X + INFOBOX_W)) && ((y > INFOBOX_Y) && (y < INFOBOX_Y + INFOBOX_H)))
+      else if (IS_IN_BOX(INFOBOX))
       { // Info button pressed
         drawInfoPage();
 
@@ -376,7 +355,7 @@ void processScreen(void)
           DacAudio.Play(&highBeep, true);
         }
       }
-      else if (((x > SETBOX_X) && (x < SETBOX_X + SETBOX_W)) && ((y > SETBOX_Y) && (y < SETBOX_Y + SETBOX_H)))
+      else if (IS_IN_BOX(SETBOX))
       { // Settings button pressed
         if (spkrVolSwitch != VOL_OFF) {
           DacAudio.StopAllSounds();
@@ -390,7 +369,7 @@ void processScreen(void)
         drawSettingsPage();
       }
 
-      else if (((x > AUPBOX_X) && (x < AUPBOX_X + AUPBOX_W)) && ((y > AUPBOX_Y) && (y < AUPBOX_Y + AUPBOX_H)))
+      else if (IS_IN_BOX(AUPBOX))
       {                                 // Increase Amps Setting
         if (arcSwitch == ARC_OFF) {     // Welding current disabled.
           if (spkrVolSwitch != VOL_OFF) {
@@ -418,7 +397,7 @@ void processScreen(void)
           }
         }
       }
-      else if (((x > ADNBOX_X) && (x < ADNBOX_X + ADNBOX_W)) && ((y > ADNBOX_Y) && (y < ADNBOX_Y + ADNBOX_H)))
+      else if (IS_IN_BOX(ADNBOX))
       {                                 // Decrease Amps Setting
         if (arcSwitch == ARC_OFF) {     // Welding current disabled.
           if (spkrVolSwitch != VOL_OFF) {
@@ -447,7 +426,7 @@ void processScreen(void)
         }
       }
 
-      else if (((x > PULSEBOX_X) && (x < PULSEBOX_X + (PULSEBOX_W * 2))) && ((y > PULSEBOX_Y) && (y < PULSEBOX_Y + PULSEBOX_H)))
+      else if (IS_IN_BOX(PULSEBOX))
       {
         pulseSwitch = pulseSwitch == PULSE_ON ? false : true; // Toggle psuedo boolean
 
@@ -482,7 +461,7 @@ void processScreen(void)
     {
       if (setAmpsActive == true)
       {
-        if (((x > AUPBOX_X) && (x < AUPBOX_X + AUPBOX_W)) && ((y > AUPBOX_Y) && (y < AUPBOX_Y + AUPBOX_H)) &&
+        if (IS_IN_BOX(AUPBOX) &&
             (millis() > arrowMillis + repeatms))
         { // Increase Amps Setting while Up Arrow button is held down. Two speeds.
           setAmpsTimerFlag = true;
@@ -517,7 +496,7 @@ void processScreen(void)
             }
           }
         }
-        else if (((x > ADNBOX_X) && (x < ADNBOX_X + ADNBOX_W)) && ((y > ADNBOX_Y) && (y < ADNBOX_Y + ADNBOX_H)) &&
+        else if (IS_IN_BOX(ADNBOX) &&
                  (millis() > arrowMillis + repeatms))
         { // Decrease Amp Setting while Up Arrow button is held down. Two speeds.
           setAmpsTimerFlag = true;
@@ -576,7 +555,7 @@ void processScreen(void)
       wasTouched      = true;
       getTouchPoints();
 
-      if (((x > 0) && (x <= SCREEN_W)) && ((y > 0) && (y <= 50))) // Return button. Return to homepage.
+      if (IS_IN_BOX(RTNBOX)) // Return button. Return to homepage.
       {
         Serial.println("Exit Info, retured to home page");
         drawHomePage();
@@ -585,7 +564,7 @@ void processScreen(void)
           DacAudio.Play(&lowBeep, true);
         }
       }
-      else if (((x > 45) && (x < 260)) && ((y > 70) && (y < 100)))
+      else if (isInBox(x, y, 45, 70, 225, 30))
       {
         infoAbortMillis = millis();
         drawInfoPage6011();
@@ -594,7 +573,7 @@ void processScreen(void)
           DacAudio.Play(&highBeep, true);
         }
       }
-      else if (((x > 45) && (x < 260)) && ((y > 125) && (y < 155)))
+      else if (isInBox(x, y, 45, 125, 225, 30))
       {
         infoAbortMillis = millis();
         drawInfoPage6013();
@@ -603,7 +582,7 @@ void processScreen(void)
           DacAudio.Play(&highBeep, true);
         }
       }
-      else if (((x > 45) && (x < 260)) && ((y > 175) && (y < 205)))
+      else if (isInBox(x, y, 45, 175, 225, 30))
       {
         infoAbortMillis = millis();
         drawInfoPage7018();
@@ -638,7 +617,7 @@ void processScreen(void)
       wasTouched      = true;
       getTouchPoints();
 
-      if (((x >= 0) && (x <= SCREEN_W)) && ((y >= 0) && (y <= SCREEN_H))) // Press anywhere on screen to main info page.
+      if (IS_IN_BOX(SCREEN)) // Press anywhere on screen to main info page.
       {
         Serial.println("User Exit 6011 Info, retured to main info page");
         infoAbortMillis = millis();
@@ -674,7 +653,7 @@ void processScreen(void)
       wasTouched      = true;
       getTouchPoints();
 
-      if (((x >= 0) && (x <= SCREEN_W)) && ((y >= 0) && (y <= SCREEN_H))) // Press anywhere on screen to main info page.
+      if (IS_IN_BOX(SCREEN)) // Press anywhere on screen to main info page.
       {
         Serial.println("User Exit 6013 Info, retured to main info page");
         infoAbortMillis = millis();
@@ -710,7 +689,7 @@ void processScreen(void)
       wasTouched      = true;
       getTouchPoints();
 
-      if (((x >= 0) && (x <= SCREEN_W)) && ((y >= 0) && (y <= SCREEN_H))) // Press anywhere on screen to main info page.
+      if (IS_IN_BOX(SCREEN)) // Press anywhere on screen to main info page.
       {
         Serial.println("User Exit 7018 Info, retured to main info page");
         infoAbortMillis = millis();
@@ -746,7 +725,7 @@ void processScreen(void)
       wasTouched          = true;
       getTouchPoints();
 
-      if (((x >= 0) && (x <= SCREEN_W)) && ((y >= 0) && (y <= 40))) // Return button. Return to home page.
+      if (IS_IN_BOX(RTNBOX)) // Return button. Return to home page.
       {
         Serial.println("User Settings page, retured to Home page");
         infoAbortMillis = millis();
@@ -756,7 +735,7 @@ void processScreen(void)
           DacAudio.Play(&lowBeep, true);
         }
       }
-      else if (((x >= SCREEN_W - (PSBOX_W + PSBOX_X)) && (x <= SCREEN_W - PSBOX_X)) && ((y >= PSBOX_Y) && (y <= PSBOX_Y + PSBOX_H)))
+      else if (isInBox(x, y, SCREEN_W - (PSBOX_W + PSBOX_X), PSBOX_Y, PSBOX_W, PSBOX_H))
       {
         limitHit = adjustPulseFreq(INCR);
         Serial.println("Increased Pulse Freq: " + String(PulseFreqHz(), 1) + " Hz"); // Increase Pulse Freq.
@@ -771,7 +750,7 @@ void processScreen(void)
           }
         }
       }
-      else if (((x >= PSBOX_X) && (x <= PSBOX_X + PSBOX_W)) && ((y >= PSBOX_Y) && (y <= PSBOX_Y + PSBOX_H)))
+      else if (IS_IN_BOX(PSBOX))
       {
         limitHit = adjustPulseFreq(DECR);
         Serial.println("Decreased Pulse Freq: " + String(PulseFreqHz(), 1) + " Hz"); // Decrease Pulse Freq.
@@ -786,7 +765,7 @@ void processScreen(void)
           }
         }
       }
-      else if (((x >= PCBOX_X) && (x <= PCBOX_X + PCBOX_W)) && ((y >= PCBOX_Y) && (y <= PCBOX_Y + PCBOX_H)))
+      else if (IS_IN_BOX(PCBOX))
       {
         limitHit = adjustPulseAmps(DECR);
         Serial.println("Decreased Pulse Current: " + String(pulseAmpsPc) + "%"); // Decrease Pulse Amps (%).
@@ -801,7 +780,7 @@ void processScreen(void)
           }
         }
       }
-      else if (((x >= SCREEN_W - (PCBOX_W + PCBOX_X)) && (x <= SCREEN_W - PCBOX_X)) && ((y >= PCBOX_Y) && (y <= PCBOX_Y + PCBOX_H)))
+      else if (isInBox(x, y, SCREEN_W - (PCBOX_W + PCBOX_X), PCBOX_Y, PCBOX_W , PCBOX_H))
       {
         limitHit = adjustPulseAmps(INCR);
         Serial.println("Increased Pulse Current: " + String(pulseAmpsPc) + "%"); // Increase Pulse Amps (%).
@@ -816,8 +795,7 @@ void processScreen(void)
           }
         }
       }
-      else if (((x >= FBBOX_X + FBBOX_W + 10) && (x <= FBBOX_X + FBBOX_W + BOBOX_W + 5)) && (y >= FBBOX_Y - 5) &&
-               (y <= FBBOX_Y + BOBOX_H - 5))
+      else if (IS_IN_BOX(BOBOX))
       {
         bleSwitch    = (bleSwitch == BLE_ON ? BLE_OFF : BLE_ON); // Pseudo Boolean toggle.
         eepromActive = true;                                     // Request EEPROM save for new settings.
@@ -836,7 +814,7 @@ void processScreen(void)
           DacAudio.Play(&bleep, true);
         }
       }
-      else if (((x >= FBBOX_X + 5) && (x <= FBBOX_W + FBBOX_X - 10)) && ((y >= FBBOX_Y - 4) && (y <= FBBOX_Y + FBBOX_H - 10)))
+      else if (isInBox(x, y, FBBOX_X + 5, FBBOX_Y - 4, FBBOX_W - 15, FBBOX_H - 6))
       {
         if (bleSwitch == BLE_OFF)
         {
@@ -899,7 +877,7 @@ void processScreen(void)
       wasTouched = true;
       getTouchPoints();
 
-      if (((x >= 0) && (x <= SCREEN_W)) && ((y >= 0) && (y <= SCREEN_H))) // Press anywhere on screen to main info page.
+      if (IS_IN_BOX(SCREEN)) // Press anywhere on screen to main info page.
       {
         Serial.println("User Proceeded to Home Page despite Error Warning.");
         drawHomePage();
@@ -1580,8 +1558,8 @@ void drawSettingsPage()
   showBleStatus(BLE_MSG_AUTO); // Show status message in Bluetooth button box.
 
   // Show the Bluetooth On/Off Button.
-  tft.drawRoundRect(FBBOX_X + FBBOX_W + 10, FBBOX_Y - 4, BOBOX_W, FBBOX_H + 8, 5, ILI9341_BLACK);
-  tft.drawRoundRect(FBBOX_X + FBBOX_W + 9,  FBBOX_Y - 3, BOBOX_W, FBBOX_H + 6, 5, ILI9341_BLACK);
+  tft.drawRoundRect(BOBOX_X, FBBOX_Y - 4, BOBOX_W, FBBOX_H + 8, 5, ILI9341_BLACK);
+  tft.drawRoundRect(BOBOX_X - 1,  FBBOX_Y - 3, BOBOX_W, FBBOX_H + 6, 5, ILI9341_BLACK);
 }
 
 // *********************************************************************************************

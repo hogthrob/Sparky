@@ -250,4 +250,40 @@ void pulseModulation(void)
   }
 }
 
+/**
+ * enables&disables the arc
+ */
+void controlArc(byte newState, bool verbose)
+{
+  if (newState == ARC_ON) 
+  {
+    enableArc(verbose);    
+  }
+  else
+  {
+    disableArc(verbose);
+  }
+}
+void enableArc(bool verbose)
+{
+  arcSwitch = ARC_ON;
+  setPotAmps(setAmps, true); // Refresh Digital Pot.
+  digitalWrite(SHUTDWON_PIN,LOW);
+  if (verbose)
+  {
+    Serial.println("Arc Current Turned On (" + String(setAmps) + " Amps)");
+  }
+}
+
+void disableArc(bool verbose)
+{
+  arcSwitch = ARC_OFF;
+  setPotAmps(SET_AMPS_DISABLE, true); // Set Digital Pot to lowest welding current.
+  digitalWrite(SHUTDWON_PIN,HIGH);
+  if (verbose)
+  {
+    Serial.println("Arc Current Turned Off (limited to " + String(SET_AMPS_DISABLE) + " Amps).");
+  }
+}
+
 // *********************************************************************************************
