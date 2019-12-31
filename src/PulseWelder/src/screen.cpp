@@ -216,7 +216,7 @@ static bool checkAndUpdateEEPROM(int addr, byte value, const char *label, const 
   {                      // Save new Current setting.
     eepromActive = true; // New Data is available to write.
     EEPROM.write(addr, value);
-    Serial.println("Write E2Prom Addr: " + String(AMP_SET_ADDR) + ", " + label + ": " + (valueString == NULL?String(value) : valueString));
+    Serial.println("Write E2Prom Addr: " + String(addr) + ", " + label + ": " + (valueString == NULL?String(value) : valueString));
   }
   return retval;
 }
